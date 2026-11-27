@@ -37,7 +37,7 @@ class MainActivity : Activity() {
         }
         MapKitFactory.initialize(this)
         mapView = MapView(this)
-        mapView.map.isTrafficEnabled = true
+        MapKitFactory.getInstance().createTrafficLayer(mapView.mapWindow).isTrafficVisible = true
         screen = Dash(this, { openNav() }, { settings() })
         val layout = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         layout.addView(mapView, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 4f))
