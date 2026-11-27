@@ -15,7 +15,7 @@ android {
     }
     defaultConfig {
         applicationId = "ru.a6rs.monitor"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 32
         versionCode = 1
         versionName = "1.0"
