@@ -21,7 +21,8 @@ class MainActivity : Activity() {
     private var pass = ""
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.decorView.systemUiVisibility = 5894 or 1024 or 512 or 4096
+        // Do not force immersive fullscreen: Android needs normal window controls for split-screen.
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         val pref = getSharedPreferences("cfg", 0)
         host = pref.getString("host", host) ?: host
         user = pref.getString("user", user) ?: user
@@ -79,50 +80,88 @@ class Dash(ctx: android.content.Context, val nav: () -> Unit, val cfg: () -> Uni
     private val white = Color.WHITE
     private val green = Color.rgb(0, 235, 45)
     fun set(d: Telemetry) { data = d; postInvalidate() }
+
     override fun onDraw(c: Canvas) {
-        val w = width.toFloat(); val h = height.toFloat()
-        c.drawColor(Color.rgb(4, 8, 14))
-        p.shader = LinearGradient(0f, 0f, w, h, Color.rgb(12, 31, 47), Color.rgb(3, 8, 13), Shader.TileMode.CLAMP)
+        val w = width.toFloat()
+        val h = height.toFloat()
+        c.drawColor(Color.rgb(5, 6, 9))
+        val narrow = w / h < 0.95f
+        if (narrow) drawSidePanel(c, w, h) else drawWidePanel(c, w, h)
+    }
+
+    private fun drawSidePanel(c: Canvas, w: Float, h: Float) {
+        val pad = w * .075f
+        val left = pad
+        val right = w - pad
+        val headerH = h * .105f
+        p.shader = LinearGradient(0f, 0f, w, h, Color.rgb(20, 20, 23), Color.rgb(3, 4, 6), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w, h, p); p.shader = null
-        p.color = Color.argb(75, 120, 155, 175); p.strokeWidth = 2f
-        for (i in 0..10) { val y = h*(.13f+i*.075f); c.drawLine(0f,y,w,y+((i-5)*18),p) }
-        p.color = Color.rgb(88, 240, 15); p.strokeWidth = h*.009f; p.style = Paint.Style.STROKE
-        p.setShadowLayer(14f,0f,0f,green)
-        val path = Path().apply { moveTo(w*.50f,h*.90f); cubicTo(w*.46f,h*.67f,w*.60f,h*.57f,w*.54f,h*.39f); cubicTo(w*.50f,h*.25f,w*.61f,h*.18f,w*.64f,h*.11f) }
-        c.drawPath(path,p); p.clearShadowLayer(); p.style = Paint.Style.FILL
-        label(c,"14:37",w*.035f,h*.055f,h*.035f,white,true)
-        label(c,"AUDI  A6  RS MONITOR",w*.5f,h*.055f,h*.034f,white,true,Paint.Align.CENTER)
-        label(c,if(data.online) "● WIFI ONLINE" else "● ESP32 OFFLINE",w*.965f,h*.055f,h*.024f,if(data.online)green else red,true,Paint.Align.RIGHT)
-        rule(c,0f,h*.09f,w,h*.09f)
-        gauge(c,w*.105f,h*.235f,h*.105f,"ТОПЛИВО",data.fuel,"%")
-        gauge(c,w*.895f,h*.235f,h*.105f,"ОЖ",data.temp,"°C")
-        label(c,"НАВИГАЦИЯ",w*.5f,h*.19f,h*.025f,Color.LTGRAY,true,Paint.Align.CENTER)
-        p.color = red; p.style = Paint.Style.STROKE; p.strokeWidth = 2f
-        c.drawRoundRect(w*.34f,h*.75f,w*.66f,h*.84f,20f,20f,p); p.style = Paint.Style.FILL
-        label(c,"▶  ЯНДЕКС НАВИГАТОР",w*.5f,h*.81f,h*.026f,white,true,Paint.Align.CENTER)
-        rule(c,0f,h*.91f,w,h*.91f)
-        label(c,fmt(data.volt," V"),w*.16f,h*.965f,h*.033f,white,true,Paint.Align.CENTER)
-        label(c,fmt(data.odo," KM"),w*.43f,h*.965f,h*.033f,white,true,Paint.Align.CENTER)
-        label(c,if(data.online)"ESP32 ONLINE" else "ESP32 OFFLINE",w*.69f,h*.965f,h*.022f,if(data.online)green else red,true,Paint.Align.CENTER)
-        label(c,if(data.kline)"K-LINE OK" else "K-LINE —",w*.88f,h*.965f,h*.022f,if(data.kline)green else Color.LTGRAY,true,Paint.Align.CENTER)
+        p.color = red; p.strokeWidth = maxOf(2f, w * .008f); c.drawLine(left, headerH, right, headerH, p)
+        label(c, "AUDI", w*.5f, h*.045f, minOf(w*.10f,h*.035f), white, true, Paint.Align.CENTER)
+        label(c, "RS", w*.5f, h*.083f, minOf(w*.12f,h*.043f), red, true, Paint.Align.CENTER)
+
+        val top = headerH + h*.025f
+        val bottom = h*.91f
+        val gap = h*.012f
+        val cardH = (bottom - top - gap*5) / 6f
+        metricCard(c, "ТОПЛИВО", fmt(data.fuel, "%"), "FUEL", left, top, right, top+cardH, 0)
+        metricCard(c, "ТЕМП. ОЖ", fmt(data.temp, "°C"), "COOLANT", left, top+(cardH+gap), right, top+2*cardH+gap, 1)
+        metricCard(c, "НАПРЯЖЕНИЕ", fmt(data.volt, " V"), "VOLTAGE", left, top+2*(cardH+gap), right, top+3*cardH+2*gap, 2)
+        metricCard(c, "ПРОБЕГ", fmt(data.odo, " км"), "ODOMETER", left, top+3*(cardH+gap), right, top+4*cardH+3*gap, 3)
+
+        val statusY = top+4*(cardH+gap)
+        val statusH = cardH*1.35f
+        p.color = Color.rgb(32, 34, 39); c.drawRoundRect(left,statusY,right,statusY+statusH,10f,10f,p)
+        label(c, "ESP32", w*.5f, statusY+statusH*.34f, minOf(w*.085f,statusH*.22f), Color.LTGRAY,true,Paint.Align.CENTER)
+        label(c, if(data.online) "● ОНЛАЙН" else "● НЕТ СВЯЗИ", w*.5f, statusY+statusH*.68f, minOf(w*.078f,statusH*.20f), if(data.online)green else red,true,Paint.Align.CENTER)
+        val klY = statusY+statusH+gap
+        p.color = Color.rgb(32,34,39); c.drawRoundRect(left,klY,right,bottom,10f,10f,p)
+        label(c,"K-LINE",w*.5f,klY+(bottom-klY)*.38f,minOf(w*.085f,(bottom-klY)*.23f),Color.LTGRAY,true,Paint.Align.CENTER)
+        label(c,if(data.kline)"● OK" else "● НЕТ СВЯЗИ",w*.5f,klY+(bottom-klY)*.72f,minOf(w*.08f,(bottom-klY)*.22f),if(data.kline)green else red,true,Paint.Align.CENTER)
+
+        p.color=red; p.strokeWidth=maxOf(2f,w*.008f); c.drawLine(left,h*.95f,right,h*.95f,p)
+        label(c,"НАСТРОЙКИ  ⚙",w*.5f,h*.985f,minOf(w*.075f,h*.025f),Color.LTGRAY,true,Paint.Align.CENTER)
     }
-    private fun gauge(c:Canvas,x:Float,y:Float,r:Float,name:String,v:Double,unit:String) {
-        p.style=Paint.Style.STROKE;p.strokeWidth=4f;p.color=red;c.drawCircle(x,y,r,p)
-        p.strokeWidth=1.5f;p.color=Color.GRAY;c.drawCircle(x,y,r*.82f,p)
-        p.style=Paint.Style.FILL
-        label(c,name,x,y-r*.38f,r*.23f,Color.LTGRAY,true,Paint.Align.CENTER)
-        label(c,fmt(v,unit),x,y+r*.15f,r*.46f,white,true,Paint.Align.CENTER)
+
+    private fun metricCard(c:Canvas,title:String,value:String,sub:String,l:Float,t:Float,r:Float,b:Float,index:Int) {
+        p.color = Color.rgb(29,31,35); c.drawRoundRect(l,t,r,b,10f,10f,p)
+        p.color = red; c.drawRoundRect(l,t,l+maxOf(3f,width*.012f),b,4f,4f,p)
+        val cx=(l+r)*.5f
+        val titleSize=minOf(width*.075f,(b-t)*.22f)
+        val valueSize=minOf(width*.125f,(b-t)*.39f)
+        label(c,title,cx,t+(b-t)*.29f,titleSize,Color.LTGRAY,true,Paint.Align.CENTER)
+        label(c,value,cx,t+(b-t)*.70f,valueSize,white,true,Paint.Align.CENTER)
     }
+
+    private fun drawWidePanel(c: Canvas, w: Float, h: Float) {
+        p.shader = LinearGradient(0f,0f,w,h,Color.rgb(18,20,24),Color.rgb(3,4,6),Shader.TileMode.CLAMP)
+        c.drawRect(0f,0f,w,h,p); p.shader=null
+        label(c,"AUDI  A6  RS MONITOR",w*.5f,h*.12f,h*.07f,white,true,Paint.Align.CENTER)
+        p.color=red;p.strokeWidth=3f;c.drawLine(w*.06f,h*.19f,w*.94f,h*.19f,p)
+        val items=listOf(Triple("ТОПЛИВО",fmt(data.fuel,"%"),"FUEL"),Triple("ТЕМПЕРАТУРА ОЖ",fmt(data.temp,"°C"),"COOLANT"),Triple("НАПРЯЖЕНИЕ",fmt(data.volt," V"),"VOLTAGE"),Triple("ПРОБЕГ",fmt(data.odo," км"),"ODOMETER"))
+        val cardW=w*.43f; val cardH=h*.24f
+        items.forEachIndexed { i,item ->
+            val col=i%2; val row=i/2
+            val l=w*.05f+col*(cardW+w*.04f); val t=h*.25f+row*(cardH+h*.06f)
+            metricCard(c,item.first,item.second,item.third,l,t,l+cardW,t+cardH,i)
+        }
+        label(c,if(data.online)"ESP32 ● ОНЛАЙН" else "ESP32 ● НЕТ СВЯЗИ",w*.28f,h*.88f,h*.045f,if(data.online)green else red,true,Paint.Align.CENTER)
+        label(c,if(data.kline)"K-LINE ● OK" else "K-LINE ● НЕТ СВЯЗИ",w*.72f,h*.88f,h*.045f,if(data.kline)green else red,true,Paint.Align.CENTER)
+        label(c,"⚙ НАСТРОЙКИ",w*.5f,h*.97f,h*.035f,Color.LTGRAY,true,Paint.Align.CENTER)
+    }
+
     private fun fmt(v:Double,s:String)=if(v.isNaN()) "--$s" else String.format(java.util.Locale.US,"%.0f%s",v,s)
     private fun label(c:Canvas,s:String,x:Float,y:Float,size:Float,color:Int,bold:Boolean,align:Paint.Align=Paint.Align.LEFT) {
-        p.color=color;p.textSize=size;p.textAlign=align;p.typeface=if(bold) Typeface.create("sans-serif-condensed",1) else Typeface.DEFAULT;c.drawText(s,x,y,p)
+        p.color=color;p.textSize=size.coerceAtLeast(9f);p.textAlign=align;p.typeface=if(bold) Typeface.create("sans-serif-condensed",Typeface.BOLD) else Typeface.DEFAULT;c.drawText(s,x,y,p)
     }
-    private fun rule(c:Canvas,x:Float,y:Float,x2:Float,y2:Float) { p.color=red;p.strokeWidth=2.5f;c.drawLine(x,y,x2,y2,p) }
-    override fun onTouchEvent(e: android.view.MotionEvent):Boolean {
+    override fun onTouchEvent(e: MotionEvent):Boolean {
         if(e.action==MotionEvent.ACTION_UP) {
             val x=e.x/width; val y=e.y/height
-            if(y in .72f.. .88f && x in .30f.. .70f) nav()
-            else if(y<.10f && x>.90f) cfg()
-        }; return true
+            if (width.toFloat()/height.toFloat() < .95f) {
+                if (y > .94f) cfg()
+            } else if (y > .91f) cfg()
+            return true
+        }
+        return true
     }
 }
