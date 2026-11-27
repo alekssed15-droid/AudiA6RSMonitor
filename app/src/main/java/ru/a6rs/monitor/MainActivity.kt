@@ -5,6 +5,8 @@ import android.os.*
 import android.view.*
 import android.graphics.*
 import android.widget.*
+import com.yandex.mapkit.MapKitFactory
+import com.yandex.mapkit.mapview.MapView
 import android.text.InputType
 import android.util.Base64
 import org.json.JSONObject
@@ -15,6 +17,7 @@ import java.util.concurrent.TimeUnit
 
 class MainActivity : Activity() {
     private lateinit var screen: Dash
+    private lateinit var mapView: MapView
     private val pool = Executors.newSingleThreadScheduledExecutor()
     private var host = "http://10.167.219.15"
     private var user = "admin"
@@ -27,8 +30,19 @@ class MainActivity : Activity() {
         host = pref.getString("host", host) ?: host
         user = pref.getString("user", user) ?: user
         pass = pref.getString("pass", pass) ?: pass
+        if (BuildConfig.MAPKIT_API_KEY.isBlank()) {
+            Toast.makeText(this, "Не задан ключ Яндекс MapKit", Toast.LENGTH_LONG).show()
+        } else {
+            MapKitFactory.setApiKey(BuildConfig.MAPKIT_API_KEY)
+        }
+        MapKitFactory.initialize(this)
+        mapView = MapView(this)
+        mapView.map.isTrafficEnabled = true
         screen = Dash(this, { openNav() }, { settings() })
-        setContentView(screen)
+        val layout = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        layout.addView(mapView, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 4f))
+        layout.addView(screen, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+        setContentView(layout)
         pool.scheduleAtFixedRate({ poll() }, 0, 1500, TimeUnit.MILLISECONDS)
     }
     private fun poll() {
@@ -65,6 +79,16 @@ class MainActivity : Activity() {
                 host = h.text.toString().trim().trimEnd('/'); user = u.text.toString(); pass = p.text.toString()
                 getSharedPreferences("cfg", 0).edit().putString("host", host).putString("user", user).putString("pass", pass).apply()
             }.setNegativeButton("Отмена", null).show()
+    }
+    override fun onStart() {
+        super.onStart()
+        MapKitFactory.getInstance().onStart()
+        mapView.onStart()
+    }
+    override fun onStop() {
+        mapView.onStop()
+        MapKitFactory.getInstance().onStop()
+        super.onStop()
     }
     override fun onDestroy() { pool.shutdownNow(); super.onDestroy() }
 }
