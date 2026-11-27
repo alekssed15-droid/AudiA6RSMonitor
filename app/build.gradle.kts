@@ -9,6 +9,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    buildFeatures { buildConfig = true }
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -18,5 +19,11 @@ android {
         targetSdk = 32
         versionCode = 1
         versionName = "1.0"
+        val mapkitKey = providers.gradleProperty("YANDEX_MAPKIT_API_KEY").orElse("").get()
+        buildConfigField("String", "MAPKIT_API_KEY", "\"$mapkitKey\"")
     }
+}
+
+dependencies {
+    implementation("com.yandex.android:maps.mobile:4.45.0-lite")
 }
